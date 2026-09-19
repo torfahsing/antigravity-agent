@@ -4,6 +4,7 @@ import { loadConfig, type AgentConfig } from './config.js';
 import { runAgent, type AgentEvent } from './agent.js';
 import { ANTIGRAVITY_AGENT_CAPABILITIES } from './capabilities.js';
 import { getAgyModels } from './models.js';
+import { getAgyUsage } from './usage.js';
 
 async function getStdinText(): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -54,6 +55,7 @@ try {
       allowedTools:   { type: 'string',  multiple: true },
       capabilities:   { type: 'boolean', default: false },
       models:         { type: 'boolean', default: false },
+      usage:          { type: 'boolean', default: false },
       help:           { type: 'boolean', short: 'h', default: false },
     },
     allowPositionals: true,
@@ -77,6 +79,12 @@ if (values.models) {
   process.exit(0);
 }
 
+if (values.usage) {
+  const usage = getAgyUsage();
+  process.stdout.write(JSON.stringify(usage, null, 2) + '\n');
+  process.exit(0);
+}
+
 if (values.help) {
   console.log(`Usage: antigravity-agent [options] [prompt]
 
@@ -88,6 +96,8 @@ Options:
       --max-steps <n>       Maximum agent reasoning/tool turns
       --allowedTools <t...> List of permitted tools
       --capabilities        Output agent capabilities manifest and exit
+      --models              Output discovered models and exit
+      --usage               Output quota/usage remaining and exit
   -h, --help                Show this help message
 
 Prompt sources (in priority order):
