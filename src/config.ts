@@ -22,7 +22,7 @@ const DEFAULT_SYSTEM_PROMPT = [
 
 export function loadConfig(overrides: Partial<AgentConfig> = {}): AgentConfig {
   const apiKey = overrides.apiKey || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
-  const model = overrides.model || process.env.GEMINI_MODEL || process.env.AGENT_MODEL || 'gemini-2.5-flash';
+  const model = overrides.model || process.env.GEMINI_MODEL || process.env.AGENT_MODEL || 'gemini-3.8-flash';
   const cwd = overrides.cwd || process.cwd();
 
   return {

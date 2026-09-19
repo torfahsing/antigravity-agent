@@ -85,9 +85,10 @@ export const ANTIGRAVITY_AGENT_CAPABILITIES: AgentCapabilities = {
     { id: 'execute', name: 'Shell Execution', default: true },
   ],
   supportedModels: [
+    'gemini-3.8-flash',
+    'gemini-3.1-pro',
+    'gemini-3.7-flash',
     'gemini-2.5-pro',
     'gemini-2.5-flash',
-    'gemini-1.5-pro',
-    'gemini-1.5-flash',
   ],
 };
