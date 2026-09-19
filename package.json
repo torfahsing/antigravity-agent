@@ -1,0 +1,22 @@
+{
+  "name": "antigravity-agent",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "antigravity-agent": "./bin/antigravity-agent"
+  },
+  "scripts": {
+    "start": "bun run src/cli.ts",
+    "build": "bun build --compile --minify ./src/cli.ts --outfile bin/antigravity-agent",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@google/genai": "^2.23.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^20.11.0",
+    "typescript": "^5.7.0"
+  }
+}
