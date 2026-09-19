@@ -8,6 +8,8 @@ describe('antigravity-agent capabilities', () => {
     expect(Array.isArray(ANTIGRAVITY_AGENT_CAPABILITIES.tools)).toBe(true);
     expect(Array.isArray(ANTIGRAVITY_AGENT_CAPABILITIES.categories)).toBe(true);
     expect(Array.isArray(ANTIGRAVITY_AGENT_CAPABILITIES.supportedModels)).toBe(true);
+    expect(ANTIGRAVITY_AGENT_CAPABILITIES.features?.models).toBe(true);
+    expect(ANTIGRAVITY_AGENT_CAPABILITIES.features?.quota).toBe(true);
   });
 
   it('declares readOnly correctly on tools', () => {

@@ -55,6 +55,7 @@ try {
       allowedTools:   { type: 'string',  multiple: true },
       capabilities:   { type: 'boolean', default: false },
       models:         { type: 'boolean', default: false },
+      quota:          { type: 'boolean', default: false },
       usage:          { type: 'boolean', default: false },
       help:           { type: 'boolean', short: 'h', default: false },
     },
@@ -79,7 +80,7 @@ if (values.models) {
   process.exit(0);
 }
 
-if (values.usage) {
+if (values.quota || values.usage) {
   const usage = getAgyUsage();
   process.stdout.write(JSON.stringify(usage, null, 2) + '\n');
   process.exit(0);
@@ -97,7 +98,7 @@ Options:
       --allowedTools <t...> List of permitted tools
       --capabilities        Output agent capabilities manifest and exit
       --models              Output discovered models and exit
-      --usage               Output quota/usage remaining and exit
+      --quota               Output quota/usage remaining and exit
   -h, --help                Show this help message
 
 Prompt sources (in priority order):
