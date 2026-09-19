@@ -3,6 +3,7 @@ import { parseArgs } from 'node:util';
 import { loadConfig, type AgentConfig } from './config.js';
 import { runAgent, type AgentEvent } from './agent.js';
 import { ANTIGRAVITY_AGENT_CAPABILITIES } from './capabilities.js';
+import { getAgyModels } from './models.js';
 
 async function getStdinText(): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -52,6 +53,7 @@ try {
       'max-steps':    { type: 'string' },
       allowedTools:   { type: 'string',  multiple: true },
       capabilities:   { type: 'boolean', default: false },
+      models:         { type: 'boolean', default: false },
       help:           { type: 'boolean', short: 'h', default: false },
     },
     allowPositionals: true,
@@ -66,6 +68,12 @@ try {
 
 if (values.capabilities) {
   process.stdout.write(JSON.stringify(ANTIGRAVITY_AGENT_CAPABILITIES, null, 2) + '\n');
+  process.exit(0);
+}
+
+if (values.models) {
+  const models = getAgyModels();
+  process.stdout.write(JSON.stringify(models, null, 2) + '\n');
   process.exit(0);
 }
 

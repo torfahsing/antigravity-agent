@@ -1,3 +1,4 @@
+import { spawn, spawnSync } from 'node:child_process';
 import { GoogleGenAI } from '@google/genai';
 import { TOOLS, executeToolCall } from './tools/index.js';
 import type { AgentConfig } from './config.js';
@@ -33,6 +34,78 @@ function filterTools(allowedTools?: string[]) {
   });
 }
 
+async function runWithAgy(
+  config: AgentConfig,
+  prompt: string,
+  options?: { onEvent?: (event: AgentEvent) => void }
+): Promise<string> {
+  const startTime = Date.now();
+  const args = ['-p', prompt, '--output-format', 'stream-json', '--dangerously-skip-permissions'];
+  if (config.model) {
+    args.push('--model', config.model);
+  }
+  const proc = spawn('agy', args, {
+    cwd: config.cwd,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+
+  let accumulatedText = '';
+  let lineBuffer = '';
+
+  return new Promise((resolve, reject) => {
+    proc.stdout?.on('data', (chunk: Buffer) => {
+      lineBuffer += chunk.toString();
+      const lines = lineBuffer.split('\n');
+      lineBuffer = lines.pop()!;
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const ev = JSON.parse(line);
+          if (ev.event === 'step_update' && ev.step_update?.text_delta) {
+            const delta = ev.step_update.text_delta;
+            accumulatedText += delta;
+            options?.onEvent?.({ type: 'text', delta });
+          } else if (ev.event === 'result') {
+            if (ev.result?.response && !accumulatedText) {
+              accumulatedText = ev.result.response;
+            }
+            options?.onEvent?.({
+              type: 'done',
+              usage: {
+                inputTokens: ev.result?.usage?.input_tokens ?? 0,
+                outputTokens: ev.result?.usage?.output_tokens ?? 0,
+                totalTokens: ev.result?.usage?.total_tokens ?? 0,
+                cost: 0,
+              },
+              durationMs: Date.now() - startTime,
+            });
+          }
+        } catch {
+          // ignore
+        }
+      }
+    });
+
+    let stderr = '';
+    proc.stderr?.on('data', chunk => { stderr += chunk.toString(); });
+
+    proc.on('close', code => {
+      if (code === 0) {
+        resolve(accumulatedText);
+      } else {
+        const msg = stderr || `agy exited with code ${code}`;
+        options?.onEvent?.({ type: 'error', message: msg });
+        reject(new Error(msg));
+      }
+    });
+
+    proc.on('error', err => {
+      options?.onEvent?.({ type: 'error', message: err.message });
+      reject(err);
+    });
+  });
+}
+
 export async function runAgent(
   config: AgentConfig,
   prompt: string,
@@ -44,7 +117,11 @@ export async function runAgent(
   let totalOutputTokens = 0;
 
   if (!config.apiKey) {
-    const err = 'GEMINI_API_KEY is required in environment or via config.';
+    const agyCheck = spawnSync('which', ['agy']);
+    if (agyCheck.status === 0) {
+      return runWithAgy(config, prompt, options);
+    }
+    const err = 'GEMINI_API_KEY is required in environment or via config, or `agy` CLI must be installed.';
     options?.onEvent?.({ type: 'error', message: err });
     throw new Error(err);
   }
