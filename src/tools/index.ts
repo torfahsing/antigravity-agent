@@ -104,18 +104,26 @@ export const TOOLS: ToolDefinition[] = [
   },
 ];
 
+export function normalizeToolName(name: string): string {
+  if (name === 'read' || name === 'view_file') return 'file_read';
+  if (name === 'bash' || name === 'run_command' || name === 'Bash') return 'shell';
+  return name;
+}
+
 export async function executeToolCall(
   name: string,
   args: Record<string, any>,
   allowedTools?: string[],
   cwd = process.cwd()
 ): Promise<string> {
+  const canonicalName = normalizeToolName(name);
+
   if (allowedTools && allowedTools.length > 0) {
     if (allowedTools.includes('none')) {
       return JSON.stringify({ error: `Tool execution blocked: all tools are disabled by allowedTools: none` });
     }
     const isAllowed = allowedTools.some(
-      pat => pat === name || (name === 'shell' && (pat === 'Bash' || pat === 'shell'))
+      pat => pat === canonicalName || pat === name || (canonicalName === 'shell' && (pat === 'Bash' || pat === 'shell'))
     );
     if (!isAllowed) {
       return JSON.stringify({
@@ -124,7 +132,7 @@ export async function executeToolCall(
     }
   }
 
-  switch (name) {
+  switch (canonicalName) {
     case 'file_read':
       return executeFileRead(args as any, cwd);
     case 'file_write':

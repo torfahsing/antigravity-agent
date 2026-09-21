@@ -1,14 +1,19 @@
 export interface ShellInput {
-  command: string;
+  command?: string;
+  cmd?: string;
   timeout?: number;
 }
 
 export async function executeShell(input: ShellInput, cwd = process.cwd()): Promise<string> {
+  const command = input.command || input.cmd;
+  if (!command) {
+    return JSON.stringify({ error: 'Missing required parameter "command"' });
+  }
   const timeoutMs = (input.timeout ?? 120) * 1000;
   const shell = process.env.SHELL || '/bin/bash';
 
   try {
-    const proc = Bun.spawn([shell, '-c', input.command], {
+    const proc = Bun.spawn([shell, '-c', command], {
       cwd,
       stdout: 'pipe',
       stderr: 'pipe',

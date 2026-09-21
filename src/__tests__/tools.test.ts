@@ -88,4 +88,34 @@ describe('antigravity-agent tools', () => {
     const parsed = JSON.parse(res);
     expect(parsed.error).toContain('all tools are disabled');
   });
+
+  it('supports tool name aliases and parameter aliases', async () => {
+    // read alias with filePath parameter
+    const readRes = await executeToolCall(
+      'read',
+      { filePath: 'hello.txt' },
+      ['file_read'],
+      testDir
+    );
+    expect(readRes).toContain('line 2 updated');
+
+    // view_file alias with file_path parameter
+    const viewRes = await executeToolCall(
+      'view_file',
+      { file_path: 'hello.txt' },
+      ['file_read'],
+      testDir
+    );
+    expect(viewRes).toContain('line 2 updated');
+
+    // bash alias with cmd parameter
+    const bashRes = await executeToolCall(
+      'bash',
+      { cmd: 'echo "hello from bash alias"' },
+      ['shell'],
+      testDir
+    );
+    expect(bashRes).toContain('hello from bash alias');
+  });
 });
+

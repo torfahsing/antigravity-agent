@@ -1,6 +1,6 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { GoogleGenAI } from '@google/genai';
-import { TOOLS, executeToolCall } from './tools/index.js';
+import { TOOLS, executeToolCall, normalizeToolName } from './tools/index.js';
 import type { AgentConfig } from './config.js';
 
 export interface DoneUsage {
@@ -28,8 +28,9 @@ function filterTools(allowedTools?: string[]) {
     return [];
   }
   return TOOLS.filter(t => {
+    const canonical = normalizeToolName(t.name);
     return allowedTools.some(
-      pat => pat === t.name || (t.name === 'shell' && (pat === 'Bash' || pat === 'shell'))
+      pat => pat === t.name || pat === canonical || (canonical === 'shell' && (pat === 'Bash' || pat === 'shell'))
     );
   });
 }
@@ -146,13 +147,17 @@ export async function runAgent(
 
   while (step < config.maxSteps) {
     step++;
-    const toolsConfig = functionDeclarations.length > 0 ? [{ functionDeclarations }] : undefined;
+    const toolNames = activeTools.map(t => t.name).join(', ');
+    const systemInstruction = [
+      config.systemPrompt,
+      toolNames ? `When using tools, you MUST ONLY use the exact tool names provided in your tools schema (${toolNames}). Do not invent or call nonexistent tools.` : '',
+    ].filter(Boolean).join('\n\n');
 
     const stream = await ai.models.generateContentStream({
       model: config.model,
       contents,
       config: {
-        systemInstruction: config.systemPrompt,
+        systemInstruction: systemInstruction || undefined,
         ...(toolsConfig ? { tools: toolsConfig as any } : {}),
       },
     });

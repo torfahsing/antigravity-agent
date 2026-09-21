@@ -1,18 +1,25 @@
 import { resolve } from 'node:path';
 
 export interface FileReadInput {
-  path: string;
+  path?: string;
+  filePath?: string;
+  file_path?: string;
+  file?: string;
   offset?: number;
   limit?: number;
 }
 
 export async function executeFileRead(input: FileReadInput, cwd = process.cwd()): Promise<string> {
   try {
-    const fullPath = resolve(cwd, input.path);
+    const rawPath = input.path || input.filePath || input.file_path || input.file;
+    if (!rawPath) {
+      return JSON.stringify({ error: 'Missing required parameter "path"' });
+    }
+    const fullPath = resolve(cwd, rawPath);
     const file = Bun.file(fullPath);
     const exists = await file.exists();
     if (!exists) {
-      return JSON.stringify({ error: `File not found: ${input.path}` });
+      return JSON.stringify({ error: `File not found: ${rawPath}` });
     }
 
     const text = await file.text();
