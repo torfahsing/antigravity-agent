@@ -46,6 +46,9 @@ async function runWithAgy(
   const args = ['-p', prompt, '--output-format', 'stream-json', '--dangerously-skip-permissions'];
   if (config.model) {
     args.push('--model', config.model);
+    if (config.model.includes('3.8')) {
+      args.push('--effort', 'low');
+    }
   }
   const proc = spawn('agy', args, {
     cwd: config.cwd,
