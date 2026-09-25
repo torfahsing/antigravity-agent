@@ -101,4 +101,24 @@ describe('antigravity-agent sandbox', () => {
     const otherRes = runGate(sandbox, { name: 'unknown_tool' });
     expect(otherRes.decision).toBe('deny');
   });
+
+  it('maintains persistent sandbox directory when sessionId is specified', async () => {
+    const testSessionId = `test-sess-${Date.now()}`;
+    sandbox = await setupAgySandbox(['file_read'], undefined, testSessionId);
+    expect(sandbox.sandboxDir).toContain(`agy-session-${testSessionId}`);
+    expect(existsSync(sandbox.sandboxDir)).toBe(true);
+
+    // Calling cleanup with sessionId should NOT remove the directory
+    await sandbox.cleanup();
+    expect(existsSync(sandbox.sandboxDir)).toBe(true);
+
+    // Reconnecting to same sessionId reuses the same sandbox dir
+    const sandbox2 = await setupAgySandbox(['file_read', 'file_write'], undefined, testSessionId);
+    expect(sandbox2.sandboxDir).toBe(sandbox.sandboxDir);
+
+    // Clean up manually at the end of the test
+    const { rm } = await import('node:fs/promises');
+    await rm(sandbox.sandboxDir, { recursive: true, force: true });
+    sandbox = null;
+  });
 });

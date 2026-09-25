@@ -104,7 +104,7 @@ Options:
   -p, --prompt <text>       Prompt to send to the agent
   -j, --json                Output NDJSON event stream to stdout
   -q, --quiet               No output; exit 0 on success, 1 on error
-  -m, --model <model>       Model override (default: gemini-2.5-flash)
+  -m, --model <model>       Model override (default: gemini-3.8-flash-low)
       --max-steps <n>       Maximum agent reasoning/tool turns
       --allowedTools <t...> List of permitted tools
       --capabilities        Output agent capabilities manifest and exit
@@ -138,6 +138,9 @@ if (values.allowedTools) overrides.allowedTools = values.allowedTools;
 if (values['max-steps']) overrides.maxSteps = parseInt(values['max-steps'], 10);
 if (values.json) overrides.outputMode = 'json';
 if (values.quiet) overrides.outputMode = 'quiet';
+if (typeof values.session === 'string' && !values['no-session']) {
+  overrides.sessionId = values.session;
+}
 
 const config = loadConfig(overrides);
 

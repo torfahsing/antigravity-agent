@@ -11,9 +11,13 @@ export interface AgySandbox {
 
 export async function setupAgySandbox(
   allowedTools: string[],
-  baseHome = homedir()
+  baseHome = homedir(),
+  sessionId?: string,
 ): Promise<AgySandbox> {
-  const sandboxDir = await mkdtemp(path.join(tmpdir(), 'agy-sandbox-'));
+  const safeId = sessionId ? sessionId.replace(/[^a-zA-Z0-9_-]/g, '_') : null;
+  const sandboxDir = safeId
+    ? path.join(tmpdir(), `agy-session-${safeId}`)
+    : await mkdtemp(path.join(tmpdir(), 'agy-sandbox-'));
 
   const geminiDir = path.join(sandboxDir, '.gemini');
   const cliDir = path.join(geminiDir, 'antigravity-cli');
@@ -36,21 +40,25 @@ export async function setupAgySandbox(
       const rel = path.relative(baseHome, src);
       const dest = path.join(sandboxDir, rel);
       await mkdir(path.dirname(dest), { recursive: true });
-      await symlink(src, dest).catch(() => {});
+      if (!existsSync(dest)) {
+        await symlink(src, dest).catch(() => {});
+      }
     }
   }
 
   // 2. Settings.json (isolated copy)
   const baseSettingsPath = path.join(baseHome, '.gemini', 'antigravity-cli', 'settings.json');
   const destSettingsPath = path.join(cliDir, 'settings.json');
-  if (existsSync(baseSettingsPath)) {
-    try {
-      await copyFile(baseSettingsPath, destSettingsPath);
-    } catch {
+  if (!existsSync(destSettingsPath)) {
+    if (existsSync(baseSettingsPath)) {
+      try {
+        await copyFile(baseSettingsPath, destSettingsPath);
+      } catch {
+        await writeFile(destSettingsPath, JSON.stringify({ allowNonWorkspaceAccess: true }), 'utf-8');
+      }
+    } else {
       await writeFile(destSettingsPath, JSON.stringify({ allowNonWorkspaceAccess: true }), 'utf-8');
     }
-  } else {
-    await writeFile(destSettingsPath, JSON.stringify({ allowNonWorkspaceAccess: true }), 'utf-8');
   }
 
   // 3. Gate script
@@ -172,6 +180,10 @@ process.stdin.on('end', () => {
     sandboxDir,
     env,
     cleanup: async () => {
+      if (sessionId) {
+        // Persist session sandbox across requests
+        return;
+      }
       try {
         await rm(sandboxDir, { recursive: true, force: true });
       } catch {

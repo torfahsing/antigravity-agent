@@ -7,6 +7,7 @@ export interface AgentConfig {
   allowedTools?: string[];
   outputMode: 'text' | 'json' | 'quiet';
   cwd: string;
+  sessionId?: string;
 }
 
 const DEFAULT_SYSTEM_PROMPT = [
@@ -22,7 +23,7 @@ const DEFAULT_SYSTEM_PROMPT = [
 
 export function loadConfig(overrides: Partial<AgentConfig> = {}): AgentConfig {
   const apiKey = overrides.apiKey || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
-  const model = overrides.model || process.env.GEMINI_MODEL || process.env.AGENT_MODEL || 'gemini-3.8-flash';
+  const model = overrides.model || process.env.GEMINI_MODEL || process.env.AGENT_MODEL || 'gemini-3.8-flash-low';
   const cwd = overrides.cwd || process.cwd();
 
   return {
@@ -34,5 +35,6 @@ export function loadConfig(overrides: Partial<AgentConfig> = {}): AgentConfig {
     allowedTools: overrides.allowedTools,
     outputMode: overrides.outputMode || 'text',
     cwd,
+    sessionId: overrides.sessionId,
   };
 }
