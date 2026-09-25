@@ -1,4 +1,7 @@
 import { spawn, spawnSync } from 'node:child_process';
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { GoogleGenAI } from '@google/genai';
 import { TOOLS, executeToolCall, normalizeToolName } from './tools/index.js';
 import type { AgentConfig } from './config.js';
@@ -42,8 +45,23 @@ async function runWithAgy(
   options?: { onEvent?: (event: AgentEvent) => void }
 ): Promise<string> {
   const startTime = Date.now();
-  const sandbox = await setupAgySandbox(config.allowedTools ?? []);
+  const sandbox = await setupAgySandbox(config.allowedTools ?? [], undefined, config.sessionId);
   const args = ['-p', prompt, '--output-format', 'stream-json', '--dangerously-skip-permissions'];
+
+  if (config.sessionId) {
+    const convFile = path.join(sandbox.sandboxDir, 'conversation_id.txt');
+    if (existsSync(convFile)) {
+      try {
+        const savedId = readFileSync(convFile, 'utf-8').trim();
+        if (savedId) {
+          args.push('--conversation', savedId);
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }
+
   if (config.model) {
     args.push('--model', config.model);
     if (config.model.includes('3.8')) {
@@ -69,6 +87,14 @@ async function runWithAgy(
         if (!line.trim()) continue;
         try {
           const ev = JSON.parse(line);
+          const convId = ev.conversation_id || ev.result?.conversation_id;
+          if (convId && config.sessionId) {
+            try {
+              writeFileSync(path.join(sandbox.sandboxDir, 'conversation_id.txt'), convId, 'utf-8');
+            } catch {
+              // ignore
+            }
+          }
           if (ev.event === 'step_update' && ev.step_update?.text_delta) {
             const delta = ev.step_update.text_delta;
             accumulatedText += delta;

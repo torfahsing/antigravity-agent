@@ -138,6 +138,9 @@ if (values.allowedTools) overrides.allowedTools = values.allowedTools;
 if (values['max-steps']) overrides.maxSteps = parseInt(values['max-steps'], 10);
 if (values.json) overrides.outputMode = 'json';
 if (values.quiet) overrides.outputMode = 'quiet';
+if (typeof values.session === 'string' && !values['no-session']) {
+  overrides.sessionId = values.session;
+}
 
 const config = loadConfig(overrides);
 

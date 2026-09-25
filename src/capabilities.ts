@@ -16,6 +16,7 @@ export interface AgentFeatures {
   models?: boolean;
   quota?: boolean;
   streaming?: boolean;
+  sessions?: boolean;
 }
 
 export interface AgentCapabilities {
@@ -95,5 +96,6 @@ export const ANTIGRAVITY_AGENT_CAPABILITIES: AgentCapabilities = {
   features: {
     models: true,
     quota: true,
+    sessions: true,
   },
 };

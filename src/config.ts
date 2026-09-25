@@ -7,6 +7,7 @@ export interface AgentConfig {
   allowedTools?: string[];
   outputMode: 'text' | 'json' | 'quiet';
   cwd: string;
+  sessionId?: string;
 }
 
 const DEFAULT_SYSTEM_PROMPT = [
@@ -34,5 +35,6 @@ export function loadConfig(overrides: Partial<AgentConfig> = {}): AgentConfig {
     allowedTools: overrides.allowedTools,
     outputMode: overrides.outputMode || 'text',
     cwd,
+    sessionId: overrides.sessionId,
   };
 }
