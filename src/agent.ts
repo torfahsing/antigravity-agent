@@ -2,6 +2,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { GoogleGenAI } from '@google/genai';
 import { TOOLS, executeToolCall, normalizeToolName } from './tools/index.js';
 import type { AgentConfig } from './config.js';
+import { setupAgySandbox } from './sandbox.js';
 
 export interface DoneUsage {
   inputTokens?: number;
@@ -41,6 +42,7 @@ async function runWithAgy(
   options?: { onEvent?: (event: AgentEvent) => void }
 ): Promise<string> {
   const startTime = Date.now();
+  const sandbox = await setupAgySandbox(config.allowedTools ?? []);
   const args = ['-p', prompt, '--output-format', 'stream-json', '--dangerously-skip-permissions'];
   if (config.model) {
     args.push('--model', config.model);
@@ -48,12 +50,14 @@ async function runWithAgy(
   const proc = spawn('agy', args, {
     cwd: config.cwd,
     stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...process.env, ...sandbox.env },
   });
 
   let accumulatedText = '';
   let lineBuffer = '';
 
-  return new Promise((resolve, reject) => {
+  try {
+    return await new Promise<string>((resolve, reject) => {
     proc.stdout?.on('data', (chunk: Buffer) => {
       lineBuffer += chunk.toString();
       const lines = lineBuffer.split('\n');
@@ -105,6 +109,9 @@ async function runWithAgy(
       reject(err);
     });
   });
+  } finally {
+    await sandbox.cleanup();
+  }
 }
 
 export async function runAgent(
