@@ -40,6 +40,8 @@ for (const arg of originalArgv) {
   }
 }
 
+const isJson = argv.includes('-j') || argv.includes('--json');
+
 let values: Record<string, any>;
 let positionals: string[];
 
@@ -47,25 +49,34 @@ try {
   const parsed = parseArgs({
     args: argv,
     options: {
-      prompt:         { type: 'string',  short: 'p' },
-      json:           { type: 'boolean', short: 'j', default: false },
-      quiet:          { type: 'boolean', short: 'q', default: false },
-      model:          { type: 'string',  short: 'm' },
-      'max-steps':    { type: 'string' },
-      allowedTools:   { type: 'string',  multiple: true },
-      capabilities:   { type: 'boolean', default: false },
-      models:         { type: 'boolean', default: false },
-      quota:          { type: 'boolean', default: false },
-      usage:          { type: 'boolean', default: false },
-      help:           { type: 'boolean', short: 'h', default: false },
+      prompt:            { type: 'string',  short: 'p' },
+      json:              { type: 'boolean', short: 'j', default: false },
+      quiet:             { type: 'boolean', short: 'q', default: false },
+      session:           { type: 'string',  short: 's' },
+      'no-session':      { type: 'boolean', default: false },
+      model:             { type: 'string',  short: 'm' },
+      'max-steps':       { type: 'string' },
+      'max-cost':        { type: 'string' },
+      'output-schema':   { type: 'string' },
+      allowedTools:      { type: 'string',  multiple: true },
+      'permission-mode': { type: 'string' },
+      capabilities:      { type: 'boolean', default: false },
+      models:            { type: 'boolean', default: false },
+      quota:             { type: 'boolean', default: false },
+      usage:             { type: 'boolean', default: false },
+      help:              { type: 'boolean', short: 'h', default: false },
     },
     allowPositionals: true,
-    strict: true,
+    strict: false,
   });
   values = parsed.values;
   positionals = parsed.positionals;
 } catch (err: any) {
-  process.stderr.write(`Error: ${err.message}\n`);
+  if (isJson) {
+    process.stdout.write(JSON.stringify({ type: 'error', message: err.message }) + '\n');
+  } else {
+    process.stderr.write(`Error: ${err.message}\n`);
+  }
   process.exit(1);
 }
 
