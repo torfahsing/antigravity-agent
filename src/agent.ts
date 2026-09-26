@@ -92,10 +92,34 @@ async function runWithAgy(
               // ignore
             }
           }
-          if (ev.event === 'step_update' && ev.step_update?.text_delta) {
-            const delta = ev.step_update.text_delta;
-            accumulatedText += delta;
-            options?.onEvent?.({ type: 'text', delta });
+          const su = ev.step_update;
+          if (ev.event === 'step_update' && su) {
+            if (su.step_type === 'tool') {
+              const toolName = su.tool_name || su.tool_info?.name || 'tool';
+              const callId = String(su.step_index ?? Date.now());
+              if (su.state === 'ACTIVE') {
+                options?.onEvent?.({
+                  type: 'tool_call',
+                  name: toolName,
+                  callId,
+                  args: (su.tool_info?.parameters as Record<string, unknown>) ?? {},
+                });
+              } else if (su.state === 'DONE') {
+                const output = typeof su.tool_info?.output === 'string'
+                  ? su.tool_info.output
+                  : JSON.stringify(su.tool_info?.output ?? '');
+                options?.onEvent?.({
+                  type: 'tool_result',
+                  name: toolName,
+                  callId,
+                  output,
+                });
+              }
+            } else if (su.text_delta) {
+              const delta = su.text_delta;
+              accumulatedText += delta;
+              options?.onEvent?.({ type: 'text', delta });
+            }
           } else if (ev.event === 'result') {
             if (ev.result?.response && !accumulatedText) {
               accumulatedText = ev.result.response;
