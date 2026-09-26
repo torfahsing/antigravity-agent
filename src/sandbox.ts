@@ -153,11 +153,16 @@ process.stdin.on('end', () => {
 
   // 4. Register hook in hooks.json
   const hooksConfig = {
-    hooks: {
+    'specflow-gate': {
       PreToolUse: [
         {
-          command: `node "${gateScriptPath}"`,
-          type: 'command',
+          matcher: '*',
+          hooks: [
+            {
+              type: 'command',
+              command: `node "${gateScriptPath}"`,
+            },
+          ],
         },
       ],
     },
