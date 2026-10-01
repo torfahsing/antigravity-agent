@@ -6,6 +6,7 @@ import { GoogleGenAI } from '@google/genai';
 import { TOOLS, executeToolCall, normalizeToolName } from './tools/index.js';
 import type { AgentConfig } from './config.js';
 import { setupAgySandbox } from './sandbox.js';
+import { loadSchemaFile, toGeminiSchema, validateSchemaOutput } from './schema.js';
 
 export interface DoneUsage {
   inputTokens?: number;
@@ -65,6 +66,11 @@ async function runWithAgy(
   if (config.model) {
     args.push('--model', config.model);
   }
+
+  if (config.outputSchema) {
+    args.push('--json-schema', config.outputSchema);
+  }
+
   const proc = spawn('agy', args, {
     cwd: config.cwd,
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -164,6 +170,25 @@ async function runWithAgy(
   }
 }
 
+function failSchema(
+  errors: string[],
+  options?: { onEvent?: (event: AgentEvent) => void },
+): void {
+  if (errors.length === 0) return;
+  const message = `Output does not match schema: ${errors.join('; ')}`;
+  options?.onEvent?.({ type: 'error', message });
+  throw new Error(message);
+}
+
+function validateOutput(
+  text: string,
+  schemaPath: string | undefined,
+  options?: { onEvent?: (event: AgentEvent) => void },
+): void {
+  if (!schemaPath) return;
+  failSchema(validateSchemaOutput(text, toGeminiSchema(loadSchemaFile(schemaPath))), options);
+}
+
 export async function runAgent(
   config: AgentConfig,
   prompt: string,
@@ -177,7 +202,9 @@ export async function runAgent(
   if (!config.apiKey) {
     const agyCheck = spawnSync('which', ['agy']);
     if (agyCheck.status === 0) {
-      return runWithAgy(config, prompt, options);
+      const text = await runWithAgy(config, prompt, options);
+      validateOutput(text, config.outputSchema, options);
+      return text;
     }
     const err = 'GEMINI_API_KEY is required in environment or via config, or `agy` CLI must be installed.';
     options?.onEvent?.({ type: 'error', message: err });
