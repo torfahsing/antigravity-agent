@@ -6,7 +6,7 @@ import { GoogleGenAI } from '@google/genai';
 import { TOOLS, executeToolCall, normalizeToolName } from './tools/index.js';
 import type { AgentConfig } from './config.js';
 import { setupAgySandbox } from './sandbox.js';
-import { loadSchemaFile, toGeminiSchema, validateSchemaOutput } from './schema.js';
+import { loadSchemaFile, toGeminiSchema, validateSchemaOutput, type GeminiSchema } from './schema.js';
 
 export interface DoneUsage {
   inputTokens?: number;
@@ -222,6 +222,12 @@ export async function runAgent(
 
   const toolsConfig = activeTools.length > 0 ? [{ functionDeclarations }] : undefined;
 
+  // responseSchema and tools are mutually exclusive in the Gemini API, so a
+  // schema-constrained run sends the schema and omits tools entirely.
+  const outputSchema: GeminiSchema | undefined = config.outputSchema
+    ? toGeminiSchema(loadSchemaFile(config.outputSchema))
+    : undefined;
+
   const contents: any[] = [
     {
       role: 'user',
@@ -242,10 +248,16 @@ export async function runAgent(
     const stream = await ai.models.generateContentStream({
       model: config.model,
       contents,
-      config: {
-        systemInstruction: systemInstruction || undefined,
-        ...(toolsConfig ? { tools: toolsConfig as any } : {}),
-      },
+      config: outputSchema
+        ? {
+            systemInstruction: systemInstruction || undefined,
+            responseMimeType: 'application/json',
+            responseSchema: outputSchema as any,
+          }
+        : {
+            systemInstruction: systemInstruction || undefined,
+            ...(toolsConfig ? { tools: toolsConfig as any } : {}),
+          },
     });
 
     let currentTurnText = '';
@@ -339,6 +351,10 @@ export async function runAgent(
       role: 'user',
       parts: responseParts,
     });
+  }
+
+  if (outputSchema) {
+    failSchema(validateSchemaOutput(accumulatedText, outputSchema), options);
   }
 
   const durationMs = Date.now() - startTime;
