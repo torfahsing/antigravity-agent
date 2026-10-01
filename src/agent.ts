@@ -193,6 +193,8 @@ export async function runAgent(
     parameters: t.parameters as any,
   }));
 
+  const toolsConfig = activeTools.length > 0 ? [{ functionDeclarations }] : undefined;
+
   const contents: any[] = [
     {
       role: 'user',
