@@ -174,6 +174,28 @@ describe('antigravity-agent agy output schema', () => {
     expect((errorEvents[0] as { message: string }).message).toContain('expected string');
   });
 
+  it('emits the stream done event before the schema error in agy mode', async () => {
+    agyResponse = '{"answer":42}';
+    let thrown: Error | undefined;
+    try {
+      await runAgent(config({ outputSchema: './schema.json' }), 'prompt', { onEvent });
+    } catch (err) {
+      thrown = err as Error;
+    }
+
+    // runWithAgy resolves only after the stdout stream handler emitted done, so
+    // in agy mode the schema error necessarily follows done (direct mode
+    // validates first). See the AC 12 note in the spec.
+    const types = events.map(ev => ev.type);
+    expect(types).toContain('done');
+    expect(types.indexOf('done')).toBeLessThan(types.indexOf('error'));
+    expect(types.filter(type => type === 'error')).toHaveLength(1);
+
+    const message = (events.find(ev => ev.type === 'error') as { message: string }).message;
+    expect(message.startsWith('Output does not match schema: ')).toBe(true);
+    expect(message).toBe(thrown?.message);
+  });
+
   it('reports non-JSON agy output as invalid JSON', async () => {
     agyResponse = 'not json at all';
     await expect(runAgent(config({ outputSchema: './schema.json' }), 'prompt', { onEvent }))
