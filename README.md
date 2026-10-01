@@ -62,6 +62,9 @@ antigravity-agent --allowedTools file_read grep glob -j -p "Find auth definition
 
 # Disable all tools and limit steps (e.g. for reviewer roles)
 antigravity-agent --allowedTools none --max-steps 1 -j -p "Review this PR"
+
+# Constrain the final response to a JSON Schema
+antigravity-agent --output-schema ./schema.json -j -p "Return the issue titles"
 ```
 
 ---
