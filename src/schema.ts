@@ -97,3 +97,95 @@ export function toGeminiSchema(node: unknown, pointer = '$'): GeminiSchema {
 
   return out;
 }
+
+function kindOf(value: unknown): string {
+  if (value === null) return 'null';
+  if (Array.isArray(value)) return 'array';
+  if (typeof value === 'number') return Number.isInteger(value) ? 'integer' : 'number';
+  return typeof value;
+}
+
+export function validateAgainstSchema(
+  value: unknown,
+  schema: GeminiSchema,
+  pointer = '$',
+): string[] {
+  const errors: string[] = [];
+
+  if (schema.nullable && value === null) return errors;
+
+  switch (schema.type) {
+    case 'OBJECT': {
+      if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+        errors.push(`${pointer}: expected object, received ${kindOf(value)}`);
+        break;
+      }
+      const obj = value as Record<string, unknown>;
+      const props = schema.properties ?? {};
+      for (const key of Object.keys(props)) {
+        if (Object.prototype.hasOwnProperty.call(obj, key)) {
+          errors.push(...validateAgainstSchema(obj[key], props[key], `${pointer}.${key}`));
+        }
+      }
+      for (const name of schema.required ?? []) {
+        if (!Object.prototype.hasOwnProperty.call(obj, name)) {
+          errors.push(`${pointer}: missing required property "${name}"`);
+        }
+      }
+      break;
+    }
+    case 'ARRAY': {
+      if (!Array.isArray(value)) {
+        errors.push(`${pointer}: expected array, received ${kindOf(value)}`);
+        break;
+      }
+      const items = schema.items;
+      if (items) {
+        value.forEach((el, i) => {
+          errors.push(...validateAgainstSchema(el, items, `${pointer}[${i}]`));
+        });
+      }
+      break;
+    }
+    case 'STRING':
+      if (typeof value !== 'string') {
+        errors.push(`${pointer}: expected string, received ${kindOf(value)}`);
+      }
+      break;
+    case 'NUMBER':
+      if (typeof value !== 'number' || !Number.isFinite(value)) {
+        errors.push(`${pointer}: expected number, received ${kindOf(value)}`);
+      }
+      break;
+    case 'INTEGER':
+      if (typeof value !== 'number' || !Number.isInteger(value)) {
+        errors.push(`${pointer}: expected integer, received ${kindOf(value)}`);
+      }
+      break;
+    case 'BOOLEAN':
+      if (typeof value !== 'boolean') {
+        errors.push(`${pointer}: expected boolean, received ${kindOf(value)}`);
+      }
+      break;
+  }
+
+  if (schema.enum && !schema.enum.includes(String(value))) {
+    errors.push(`${pointer}: value is not one of ${JSON.stringify(schema.enum)}`);
+  }
+
+  return errors;
+}
+
+export function validateSchemaOutput(text: string, schema: GeminiSchema): string[] {
+  const trimmed = text.trim();
+  if (!trimmed) return ['$ : output is empty'];
+
+  let value: unknown;
+  try {
+    value = JSON.parse(trimmed);
+  } catch (err: any) {
+    return [`$ : output is not valid JSON (${err.message})`];
+  }
+
+  return validateAgainstSchema(value, schema);
+}
