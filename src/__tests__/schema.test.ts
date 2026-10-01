@@ -1,5 +1,10 @@
-import { describe, it, expect } from 'bun:test';
-import { toGeminiSchema, validateAgainstSchema, validateSchemaOutput } from '../schema.js';
+import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { toGeminiSchema, validateAgainstSchema, validateSchemaOutput, loadSchemaFile } from '../schema.js';
+import { loadConfig } from '../config.js';
 
 describe('validateAgainstSchema', () => {
   const userSchema = toGeminiSchema({
@@ -164,5 +169,222 @@ describe('validateSchemaOutput', () => {
     const errors = validateSchemaOutput('```json\n{"answer":"42"}\n```', schema);
     expect(errors).toHaveLength(1);
     expect(errors[0]).toContain('not valid JSON');
+  });
+
+  it('end-to-end: validating a string-answer schema succeeds for conforming JSON', () => {
+    const e2eSchema = toGeminiSchema({
+      type: 'object',
+      properties: { answer: { type: 'string' } },
+      required: ['answer'],
+    });
+    expect(validateSchemaOutput('{"answer":"42"}', e2eSchema)).toEqual([]);
+  });
+
+  it('end-to-end: rejecting an integer where a string is expected', () => {
+    const e2eSchema = toGeminiSchema({
+      type: 'object',
+      properties: { answer: { type: 'string' } },
+      required: ['answer'],
+    });
+    const errors = validateSchemaOutput('{"answer":42}', e2eSchema);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors.some(e => e.includes('$.answer'))).toBe(true);
+  });
+});
+
+let schemaTmpDir: string;
+afterAll(async () => {
+  if (schemaTmpDir) {
+    await rm(schemaTmpDir, { recursive: true, force: true });
+  }
+});
+
+describe('loadSchemaFile', () => {
+  beforeAll(async () => {
+    schemaTmpDir = await mkdtemp(join(tmpdir(), 'agy-schema-test-'));
+  });
+
+  it('throws when the file does not exist', () => {
+    const missingPath = join(schemaTmpDir, 'nonexistent.json');
+    expect(() => loadSchemaFile(missingPath)).toThrow(
+      'Output schema file not found: ' + missingPath,
+    );
+  });
+
+  it('throws when the file contains invalid JSON', () => {
+    const badPath = join(schemaTmpDir, 'bad.json');
+    writeFileSync(badPath, 'not json');
+    expect(() => loadSchemaFile(badPath)).toThrow(
+      'Output schema file is not valid JSON: ' + badPath,
+    );
+  });
+
+  it('throws when the file parses to a non-object (array)', () => {
+    const arrPath = join(schemaTmpDir, 'array.json');
+    writeFileSync(arrPath, '[]');
+    expect(() => loadSchemaFile(arrPath)).toThrow(
+      'Output schema must be a JSON object: ' + arrPath,
+    );
+  });
+
+  it('throws when the file parses to null', () => {
+    const nullPath = join(schemaTmpDir, 'null.json');
+    writeFileSync(nullPath, 'null');
+    expect(() => loadSchemaFile(nullPath)).toThrow(
+      'Output schema must be a JSON object: ' + nullPath,
+    );
+  });
+
+  it('returns the parsed object for a valid schema file', () => {
+    const goodPath = join(schemaTmpDir, 'good.json');
+    const schemaObj = { type: 'object', properties: { x: { type: 'string' } } };
+    writeFileSync(goodPath, JSON.stringify(schemaObj));
+    const result = loadSchemaFile(goodPath);
+    expect(result).toEqual(schemaObj);
+  });
+});
+
+describe('toGeminiSchema conversions', () => {
+
+  it('converts a lowercase object schema to uppercase OBJECT types', () => {
+    const src = {
+      type: 'object',
+      properties: { name: { type: 'string' }, count: { type: 'integer' } },
+      required: ['name'],
+    };
+    const gemini = toGeminiSchema(src);
+    expect(gemini.type).toBe('OBJECT');
+    expect(gemini.properties!.name.type).toBe('STRING');
+    expect(gemini.properties!.count.type).toBe('INTEGER');
+    expect(gemini.required).toEqual(['name']);
+  });
+
+  it('accepts already-uppercase types unchanged', () => {
+    const src = {
+      type: 'OBJECT',
+      properties: { name: { type: 'STRING' } },
+    };
+    const gemini = toGeminiSchema(src);
+    expect(gemini.type).toBe('OBJECT');
+    expect(gemini.properties!.name.type).toBe('STRING');
+  });
+
+  it('infers OBJECT from properties when type is absent', () => {
+    const src = { properties: { foo: { type: 'string' } } };
+    const gemini = toGeminiSchema(src);
+    expect(gemini.type).toBe('OBJECT');
+  });
+
+  it('infers ARRAY from items when type is absent', () => {
+    const src = { items: { type: 'string' } };
+    const gemini = toGeminiSchema(src);
+    expect(gemini.type).toBe('ARRAY');
+  });
+
+  it('maps a ["string","null"] union to STRING with nullable', () => {
+    const src = { type: ['string', 'null'] };
+    const gemini = toGeminiSchema(src);
+    expect(gemini.type).toBe('STRING');
+    expect(gemini.nullable).toBe(true);
+  });
+
+  it('throws for an unsupported type like "function"', () => {
+    const src = { type: 'function' };
+    expect(() => toGeminiSchema(src)).toThrow(
+      'Unsupported output schema type "function" at $',
+    );
+  });
+
+  it('throws for an object with neither type nor properties/items', () => {
+    const src = {};
+    expect(() => toGeminiSchema(src)).toThrow('Output schema at $ is missing "type"');
+  });
+
+  it('interpolates pointer in error messages for nested schemas', () => {
+    const src = {
+      type: 'object',
+      properties: { items: { type: 'bogus' } },
+    };
+    expect(() => toGeminiSchema(src)).toThrow(
+      'Unsupported output schema type "bogus" at $.items',
+    );
+  });
+
+  it('interpolates pointer for array items', () => {
+    const src = {
+      type: 'array',
+      items: { type: 'bogus' },
+    };
+    expect(() => toGeminiSchema(src)).toThrow(
+      'Unsupported output schema type "bogus" at $[]',
+    );
+  });
+
+  it('carries through description, enum, and required', () => {
+    const src = {
+      type: 'string',
+      description: 'A value',
+      enum: ['a', 'b', 'c'],
+      required: ['x'],
+    };
+    const gemini = toGeminiSchema(src);
+    expect(gemini.description).toBe('A value');
+    expect(gemini.enum).toEqual(['a', 'b', 'c']);
+    // required on a leaf type is carried through but unused by validation
+    expect(gemini.required).toEqual(['x']);
+  });
+
+  it('ignores unknown keywords like $schema and additionalProperties', () => {
+    const src = {
+      type: 'object',
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      additionalProperties: false,
+      minLength: 3,
+      properties: { x: { type: 'string' } },
+    };
+    const gemini = toGeminiSchema(src);
+    expect((gemini as Record<string, unknown>).$schema).toBeUndefined();
+    expect((gemini as Record<string, unknown>).additionalProperties).toBeUndefined();
+    expect((gemini as Record<string, unknown>).minLength).toBeUndefined();
+  });
+});
+
+let configTmpDir: string;
+afterAll(async () => {
+  if (configTmpDir) {
+    await rm(configTmpDir, { recursive: true, force: true });
+  }
+});
+
+describe('loadConfig outputSchema resolution', () => {
+  beforeAll(async () => {
+    configTmpDir = await mkdtemp(join(tmpdir(), 'agy-config-test-'));
+  });
+
+  it('resolves a relative path to an absolute path against cwd', () => {
+    const schemaPath = join(configTmpDir, 'schema.json');
+    writeFileSync(schemaPath, JSON.stringify({ type: 'object' }));
+    const config = loadConfig({ cwd: configTmpDir, outputSchema: 'schema.json' });
+    expect(config.outputSchema).toBe(schemaPath);
+  });
+
+  it('passes through an already-absolute existing path unchanged', () => {
+    const schemaPath = join(configTmpDir, 'abs.json');
+    writeFileSync(schemaPath, JSON.stringify({ type: 'object' }));
+    const config = loadConfig({ cwd: '/tmp', outputSchema: schemaPath });
+    expect(config.outputSchema).toBe(schemaPath);
+  });
+
+  it('returns undefined when outputSchema override is absent', () => {
+    const config = loadConfig({ cwd: configTmpDir });
+    expect(config.outputSchema).toBe(undefined);
+  });
+
+  it('throws when the resolved schema file does not exist', () => {
+    const configFn = () =>
+      loadConfig({ cwd: configTmpDir, outputSchema: 'missing.json' });
+    expect(configFn).toThrow(
+      'Output schema file not found: ' + join(configTmpDir, 'missing.json'),
+    );
   });
 });
