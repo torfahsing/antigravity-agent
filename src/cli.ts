@@ -101,17 +101,17 @@ if (values.help) {
   console.log(`Usage: antigravity-agent [options] [prompt]
 
 Options:
-  -p, --prompt <text>       Prompt to send to the agent
-  -j, --json                Output NDJSON event stream to stdout
-  -q, --quiet               No output; exit 0 on success, 1 on error
-  -m, --model <model>       Model override (default: gemini-3.8-flash-low)
-      --max-steps <n>       Maximum agent reasoning/tool turns
-      --output-schema <path> Path to a JSON Schema constraining the final response
-      --allowedTools <t...> List of permitted tools
-      --capabilities        Output agent capabilities manifest and exit
-      --models              Output discovered models and exit
-      --quota               Output quota/usage remaining and exit
-  -h, --help                Show this help message
+  -p, --prompt <text>         Prompt to send to the agent
+  -j, --json                  Output NDJSON event stream to stdout
+  -q, --quiet                 No output; exit 0 on success, 1 on error
+  -m, --model <model>         Model override (default: gemini-3.8-flash-low)
+      --max-steps <n>         Maximum agent reasoning/tool turns
+      --output-schema <path>  Path to a JSON Schema constraining the final response
+      --allowedTools <t...>   List of permitted tools
+      --capabilities          Output agent capabilities manifest and exit
+      --models                Output discovered models and exit
+      --quota                 Output quota/usage remaining and exit
+  -h, --help                  Show this help message
 
 Prompt sources (in priority order):
   1. --prompt flag
