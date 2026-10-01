@@ -106,6 +106,7 @@ Options:
   -q, --quiet               No output; exit 0 on success, 1 on error
   -m, --model <model>       Model override (default: gemini-3.8-flash-low)
       --max-steps <n>       Maximum agent reasoning/tool turns
+      --output-schema <path> Path to a JSON Schema constraining the final response
       --allowedTools <t...> List of permitted tools
       --capabilities        Output agent capabilities manifest and exit
       --models              Output discovered models and exit
@@ -136,15 +137,15 @@ const overrides: Partial<AgentConfig> = {};
 if (values.model) overrides.model = values.model;
 if (values.allowedTools) overrides.allowedTools = values.allowedTools;
 if (values['max-steps']) overrides.maxSteps = parseInt(values['max-steps'], 10);
+if (values['output-schema']) overrides.outputSchema = values['output-schema'];
 if (values.json) overrides.outputMode = 'json';
 if (values.quiet) overrides.outputMode = 'quiet';
 if (typeof values.session === 'string' && !values['no-session']) {
   overrides.sessionId = values.session;
 }
 
-const config = loadConfig(overrides);
-
 try {
+  const config = loadConfig(overrides);
   const result = await runAgent(config, prompt, {
     onEvent: (event: AgentEvent) => {
       if (values.json) {
