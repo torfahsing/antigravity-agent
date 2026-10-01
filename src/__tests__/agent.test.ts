@@ -3,6 +3,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { loadConfig } from '../config.js';
+import { toGeminiSchema, validateSchemaOutput, type GeminiSchema } from '../schema.js';
 import type { AgentEvent } from '../agent.js';
 
 interface StreamRequest {
@@ -201,5 +202,66 @@ describe('antigravity-agent direct mode output schema', () => {
     const errorEvents = events.filter(ev => ev.type === 'error');
     expect((errorEvents[0] as { message: string }).message).toContain('not valid JSON');
     expect(events.some(ev => ev.type === 'done')).toBe(false);
+  });
+});
+
+describe('antigravity-agent output schema', () => {
+  const rawSchema = {
+    type: 'object',
+    properties: {
+      answer: { type: 'string' },
+      confidence: { type: 'number' },
+    },
+    required: ['answer'],
+  };
+
+  it('accepts a conforming payload and round-trips types to uppercase Gemini types', () => {
+    const gemini = toGeminiSchema(rawSchema);
+    expect(gemini.type).toBe('OBJECT');
+    expect(gemini.properties?.answer.type).toBe('STRING');
+    expect(gemini.properties?.confidence.type).toBe('NUMBER');
+    expect(gemini.required).toEqual(['answer']);
+    expect(validateSchemaOutput('{"answer":"42","confidence":0.9}', gemini)).toEqual([]);
+  });
+
+  it('rejects a payload that violates the schema', () => {
+    const gemini = toGeminiSchema(rawSchema);
+    const errors = validateSchemaOutput('{"answer":42}', gemini);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors.some(e => e.includes('$.answer'))).toBe(true);
+    expect(errors.some(e => e.includes('expected string'))).toBe(true);
+  });
+
+  it('omits tools from the request config when a schema is set', () => {
+    // Mirror the AD-7 branch selection in runAgent: responseSchema and tools
+    // are mutually exclusive, so a schema-constrained request omits tools.
+    const functionDeclarations = [
+      { name: 'run_command', description: 'Run a command', parameters: { type: 'OBJECT', properties: {} } },
+    ];
+    const toolsConfig = [{ functionDeclarations }];
+    const outputSchema = toGeminiSchema(rawSchema);
+
+    const buildConfig = (schema: GeminiSchema | undefined) =>
+      schema
+        ? {
+            systemInstruction: 'instruct',
+            responseMimeType: 'application/json',
+            responseSchema: schema,
+          }
+        : {
+            systemInstruction: 'instruct',
+            ...(toolsConfig ? { tools: toolsConfig as any } : {}),
+          };
+
+    const schemaBranch = buildConfig(outputSchema);
+    const toolsBranch = buildConfig(undefined);
+
+    expect(schemaBranch).not.toHaveProperty('tools');
+    expect(schemaBranch.responseMimeType).toBe('application/json');
+    expect(schemaBranch.responseSchema.type).toBe('OBJECT');
+
+    expect(toolsBranch).toHaveProperty('tools');
+    expect(toolsBranch.tools).toEqual(toolsConfig);
+    expect(toolsBranch).not.toHaveProperty('responseSchema');
   });
 });
