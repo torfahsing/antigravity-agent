@@ -105,7 +105,10 @@ export const TOOLS: ToolDefinition[] = [
 ];
 
 export function normalizeToolName(name: string): string {
-  if (name === 'read' || name === 'view_file') return 'file_read';
+  if (name === 'read' || name === 'view_file' || name === 'read_file') return 'file_read';
+  if (name === 'write' || name === 'write_file') return 'file_write';
+  if (name === 'edit' || name === 'edit_file') return 'file_edit';
+  if (name === 'list_files' || name === 'ls') return 'list_dir';
   if (name === 'bash' || name === 'run_command' || name === 'Bash') return 'shell';
   return name;
 }

@@ -108,6 +108,15 @@ describe('antigravity-agent tools', () => {
     );
     expect(viewRes).toContain('line 2 updated');
 
+    // read_file alias with path parameter
+    const readFileRes = await executeToolCall(
+      'read_file',
+      { path: 'hello.txt' },
+      ['file_read'],
+      testDir
+    );
+    expect(readFileRes).toContain('line 2 updated');
+
     // bash alias with cmd parameter
     const bashRes = await executeToolCall(
       'bash',
